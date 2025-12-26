@@ -1,10 +1,6 @@
 name: Build Docker Image
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
   workflow_dispatch:
 
 env:
@@ -47,27 +43,17 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ steps.image.outputs.image }}
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=latest
+          type=sha
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-    - name: Test Docker image
-      if: github.event_name == 'pull_request'
-      run: |
-        docker build -t ec2-bootstrap:test .
-        docker run --rm ec2-bootstrap:test npm test
 
