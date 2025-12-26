@@ -83,6 +83,22 @@ docker compose build --no-cache
 - Terraform installed
 - SSH key created in AWS (EC2 Key Pairs)
 
+### GitHub Secrets for CI/CD
+
+If you plan to use GitHub Actions for AWS deployment, configure the required secrets. See [SECRETS.md](./SECRETS.md) for the complete list.
+
+### Test AWS Connection (Ping)
+
+Before deploying infrastructure, test your AWS connection:
+
+```bash
+cd terraform/ping-test
+terraform init
+terraform apply
+```
+
+This will output your AWS account ID, user ID, and ARN to verify the connection works with your `tf-user` profile configured in `~/.aws/config`.
+
 ### Usage:
 
 1. Navigate to terraform directory:
@@ -176,6 +192,8 @@ Tests use Jest and Supertest to verify all API endpoints.
 
 ### GitHub Actions
 
+#### Tests
+
 Tests run automatically on:
 - Push to `main` or `develop` branches
 - Pull Requests to `main` or `develop` branches
@@ -197,6 +215,32 @@ The workflow includes two test jobs:
 - Docker tests: Ensures deployment image works correctly
 
 Workflow file: `.github/workflows/test.yml`
+
+#### Docker Build
+
+Docker image is automatically built and pushed to GitHub Container Registry (GHCR) on:
+- Push to `main` or `develop` branches (pushes to registry)
+- Pull Requests to `main` or `develop` branches (builds only, no push)
+- Manual trigger via **Actions** → **Build Docker Image** → **Run workflow**
+
+The build workflow:
+- Builds Docker image using Docker Buildx
+- Pushes to `ghcr.io/<owner>/<repo>` registry
+- Uses GitHub Actions cache for faster builds
+- Creates tags: `latest`, branch name, commit SHA
+- Runs tests inside the built image (on PRs)
+
+**Pulling the image:**
+```bash
+docker pull ghcr.io/<your-username>/ec2-bootstrap:latest
+```
+
+**Note:** Make sure the package is set to public in GitHub repository settings → Packages, or authenticate with:
+```bash
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+```
+
+Workflow file: `.github/workflows/build.yml`
 
 ## API Endpoints
 
