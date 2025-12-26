@@ -57,3 +57,27 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    - name: Create HTML artifact
+      run: |
+        mkdir -p artifact
+        cat <<EOF > artifact/index.html
+        <html>
+          <head>
+            <title>Docker Image Build</title>
+          </head>
+          <body>
+            <h2>Docker Image Build</h2>
+            <p><b>Image:</b> ${{ env.REGISTRY }}/${{ steps.image.outputs.image }}:latest</p>
+            <p><b>Commit:</b> ${{ github.sha }}</p>
+            <p><b>Branch:</b> ${{ github.ref_name }}</p>
+            <p><b>Pull:</b></p>
+            <pre>docker pull ${{ env.REGISTRY }}/${{ steps.image.outputs.image }}:latest</pre>
+          </body>
+        </html>
+        EOF
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker-build-info
+        path: artifact/index.html
