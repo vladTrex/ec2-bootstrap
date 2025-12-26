@@ -206,7 +206,7 @@ Docker image is automatically built and pushed to GitHub Container Registry (GHC
 - Pull Requests to `main` or `develop` branches (builds only, no push)
 - Manual trigger via **Actions** → **Build Docker Image** → **Run workflow**
 
-The build workflow builds and pushes Docker image to `ghcr.io/<owner>/<repo>` with tags: `latest`, branch name, commit SHA.
+The build workflow builds and pushes multi-platform Docker image (linux/amd64, linux/arm64) to `ghcr.io/<owner>/<repo>` with tags: `latest`, branch name, commit SHA.
 
 **Pulling the image locally:**
 ```bash
