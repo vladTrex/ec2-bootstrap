@@ -1,0 +1,40 @@
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3030;
+
+app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.get('/data', (req, res) => {
+  res.status(200).json({
+    message: 'Hello from EC2!',
+    data: {
+      server: 'ec2-bootstrap',
+      environment: process.env.NODE_ENV || 'development',
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Welcome to EC2 Bootstrap API',
+    endpoints: ['/health', '/data']
+  });
+});
+
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
+

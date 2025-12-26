@@ -1,0 +1,22 @@
+{
+  "name": "ec2-bootstrap",
+  "version": "1.0.0",
+  "description": "Minimal Node.js/Express app for learning backend and infrastructure skills",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "jest"
+  },
+  "keywords": ["express", "nodejs", "docker", "ec2"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  }
+}
+
