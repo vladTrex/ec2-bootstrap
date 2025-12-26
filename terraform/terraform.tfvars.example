@@ -3,6 +3,3 @@ instance_type = "t2.micro"
 key_name      = "your-key-pair-name"
 docker_image  = "ec2-bootstrap:latest"
 
-# Find current AMI ID for Amazon Linux 2023 in AWS Console or via AWS CLI:
-# aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" --query 'Images[*].[ImageId,Name]' --output table
-

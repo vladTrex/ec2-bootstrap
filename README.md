@@ -6,15 +6,15 @@ Simple project for learning basic backend and infrastructure skills.
 
 ```
 .
-├── server.js              # Express app with /health and /data endpoints
-├── package.json           # Node.js dependencies
-├── Dockerfile             # Docker image for the app
-├── docker-compose.yml     # Docker Compose configuration
-├── terraform/             # Terraform configuration for AWS
-│   ├── main.tf           # Main resources (EC2, Security Group)
-│   ├── variables.tf      # Terraform variables
-│   └── terraform.tfvars.example  # Configuration example
-└── README.md             # This file
+├── server.js
+├── package.json
+├── Dockerfile
+├── docker-compose.yml
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   └── terraform.tfvars.example
+└── README.md
 ```
 
 ## Local Development
@@ -65,15 +65,9 @@ docker run --rm ec2-bootstrap:latest npm test
 
 **Option 3: Run tests in running container**
 ```bash
-# Rebuild image first if needed
 docker compose build
 docker compose up -d
 docker exec ec2-bootstrap npm test
-```
-
-**Note:** If you get "Missing script: test" error, rebuild the Docker image:
-```bash
-docker compose build --no-cache
 ```
 
 ## AWS Infrastructure (Terraform)
@@ -200,19 +194,8 @@ Tests run automatically on:
 
 The workflow includes two test jobs:
 
-1. **Test (Direct)** - Fast unit tests running directly with npm
-   - Tests code logic quickly
-   - Runs on multiple Node.js versions (18.x, 20.x)
-   - Faster execution
-
+1. **Test (Direct)** - Unit tests running directly with npm on Node.js 18.x and 20.x
 2. **Test (Docker)** - Integration tests in Docker container
-   - Validates Dockerfile works correctly
-   - Tests in production-like environment
-   - Ensures Docker image can run tests
-
-**Why both?**
-- Direct tests: Fast feedback during development
-- Docker tests: Ensures deployment image works correctly
 
 Workflow file: `.github/workflows/test.yml`
 
@@ -223,22 +206,40 @@ Docker image is automatically built and pushed to GitHub Container Registry (GHC
 - Pull Requests to `main` or `develop` branches (builds only, no push)
 - Manual trigger via **Actions** → **Build Docker Image** → **Run workflow**
 
-The build workflow:
-- Builds Docker image using Docker Buildx
-- Pushes to `ghcr.io/<owner>/<repo>` registry
-- Uses GitHub Actions cache for faster builds
-- Creates tags: `latest`, branch name, commit SHA
-- Runs tests inside the built image (on PRs)
+The build workflow builds and pushes Docker image to `ghcr.io/<owner>/<repo>` with tags: `latest`, branch name, commit SHA.
 
-**Pulling the image:**
+**Pulling the image locally:**
 ```bash
 docker pull ghcr.io/<your-username>/ec2-bootstrap:latest
 ```
 
-**Note:** Make sure the package is set to public in GitHub repository settings → Packages, or authenticate with:
-```bash
-echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+**Note:** Repository name is automatically converted to lowercase (e.g., `vladTrex` → `vladtrex`).
+
+**Using the image in GitHub Actions:**
+
+In another workflow, you can use the image like this:
+
+```yaml
+- name: Log in to GitHub Container Registry
+  uses: docker/login-action@v3
+  with:
+    registry: ghcr.io
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
+
+- name: Set image name to lowercase
+  id: image
+  run: |
+    IMAGE_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+    echo "image=$IMAGE_LOWER" >> $GITHUB_OUTPUT
+
+- name: Pull and run image
+  run: |
+    docker pull ghcr.io/${{ steps.image.outputs.image }}:latest
+    docker run -d -p 3030:3030 ghcr.io/${{ steps.image.outputs.image }}:latest
 ```
+
+See `.github/workflows/example-usage.yml.example` for a complete example.
 
 Workflow file: `.github/workflows/build.yml`
 
