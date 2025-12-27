@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "project_name" {
+  description = "Name of the project"
+  type        = string
+  default     = "ec2-bootstrap"
+}
+
 variable "ami_id" {
   description = "AMI ID for EC2 instance (Amazon Linux 2023)"
   type        = string
@@ -27,3 +33,8 @@ variable "docker_image" {
   default     = "ec2-bootstrap:latest"
 }
 
+variable "tags" {
+  description = "Tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}
