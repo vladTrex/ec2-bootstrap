@@ -1,0 +1,39 @@
+name: Ping EC2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping server over SSH
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            echo "== Server =="
+            hostname
+            uptime
+
+            echo "== Docker =="
+            docker info > /dev/null
+            echo "Docker OK"
+
+            echo "== Containers =="
+            docker ps
+
+            echo "== App health =="
+            curl -fsS http://localhost:3030 || (
+              echo "❌ App is not responding"
+              docker logs ec2-bootstrap --tail 100 || true
+              exit 1
+            )
+
+            echo "✅ Ping successful"

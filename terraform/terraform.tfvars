@@ -1,7 +1,7 @@
 aws_region    = "eu-central-1"
 project_name  = "ec2-bootstrap"
 instance_type = "t2.micro"
-key_name      = "webserver-1"
+key_name      = "ec2-keypair-v2"
 docker_image  = "ec2-bootstrap:latest"
 
 tags = {
