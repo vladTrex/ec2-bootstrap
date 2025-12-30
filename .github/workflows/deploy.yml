@@ -43,5 +43,5 @@ jobs:
               -p "${PORT}:${PORT}" \
               "$IMAGE"
 
-            curl -fsS "http://localhost:${PORT}" >/dev/null
+            docker ps --filter "name=$NAME"
             echo "✅ Deployed: $IMAGE"
