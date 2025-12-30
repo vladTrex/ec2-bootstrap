@@ -18,7 +18,8 @@ app.get('/data', (req, res) => {
     data: {
       server: 'ec2-bootstrap',
       environment: process.env.NODE_ENV || 'development',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      uptimeSec: process.uptime()
     }
   });
 });
