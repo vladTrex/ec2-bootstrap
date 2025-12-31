@@ -52,3 +52,14 @@ module "ec2" {
 
   tags = var.tags
 }
+
+module "cloudwatch_logs" {
+  source = "./modules/cloudwatch-logs"
+
+  project_name        = var.project_name
+  iam_role_name       = module.ec2.iam_role_name
+  log_retention_days  = var.cloudwatch_log_retention_days
+  tags                = var.tags
+
+  depends_on = [module.ec2]
+}

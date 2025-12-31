@@ -18,6 +18,7 @@ resource "aws_instance" "this" {
   instance_type          = var.instance_type
   vpc_security_group_ids = var.security_group_ids
   key_name               = var.key_name
+  iam_instance_profile   = aws_iam_instance_profile.this.name
 
   user_data = var.user_data
 
@@ -28,4 +29,3 @@ resource "aws_instance" "this" {
     }
   )
 }
-

@@ -34,6 +34,44 @@ jobs:
 
             sudo systemctl start docker || true
 
+            # Install CloudWatch agent if not installed
+            if ! command -v amazon-cloudwatch-agent &> /dev/null; then
+              echo "Installing CloudWatch agent..."
+              wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+              sudo rpm -U ./amazon-cloudwatch-agent.rpm
+              rm -f amazon-cloudwatch-agent.rpm
+            fi
+
+            # Configure CloudWatch agent for Docker logs
+            INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
+            sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+            sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOF
+            {
+              "logs": {
+                "logs_collected": {
+                  "files": {
+                    "collect_list": [
+                      {
+                        "file_path": "/var/lib/docker/containers/*/*-json.log",
+                        "log_group_name": "/ec2/ec2-bootstrap/docker",
+                        "log_stream_name": "${INSTANCE_ID}-docker",
+                        "timezone": "UTC"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            EOF
+
+            # Start CloudWatch agent
+            sudo systemctl enable amazon-cloudwatch-agent
+            sudo systemctl restart amazon-cloudwatch-agent || sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+              -a fetch-config \
+              -m ec2 \
+              -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+              -s
+
             docker pull "$IMAGE"
             docker rm -f "$NAME" || true
 
@@ -45,3 +83,4 @@ jobs:
 
             docker ps --filter "name=$NAME"
             echo "✅ Deployed: $IMAGE"
+            echo "✅ CloudWatch agent configured"

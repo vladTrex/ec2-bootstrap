@@ -18,3 +18,13 @@ output "app_url" {
   value       = "http://${module.ec2.instance_public_ip}:3030"
 }
 
+output "cloudwatch_app_log_group" {
+  description = "CloudWatch log group for application logs"
+  value       = module.cloudwatch_logs.app_log_group_name
+}
+
+output "cloudwatch_docker_log_group" {
+  description = "CloudWatch log group for Docker logs"
+  value       = module.cloudwatch_logs.docker_log_group_name
+}
+

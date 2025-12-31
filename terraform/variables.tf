@@ -33,6 +33,12 @@ variable "docker_image" {
   default     = "ec2-bootstrap:latest"
 }
 
+variable "cloudwatch_log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 7
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
