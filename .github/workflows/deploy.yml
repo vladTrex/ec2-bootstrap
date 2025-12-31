@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag to deploy (e.g. latest, sha-xxxx)"
+        description: "Image tag to deploy (e.g. latest, staging-<sha>, prod-<sha>)"
         required: true
         default: latest
 
@@ -12,10 +12,13 @@ env:
   IMAGE: ghcr.io/${{ github.repository }} # owner/repo
   CONTAINER_NAME: ec2-bootstrap
   PORT: "3030"
+  AWS_REGION: eu-central-1
+  LOG_GROUP: /ec2/ec2-bootstrap/docker
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.1.0
@@ -31,20 +34,34 @@ jobs:
             IMAGE="${IMAGE_LOWER}:${{ inputs.tag }}"
             NAME="${{ env.CONTAINER_NAME }}"
             PORT="${{ env.PORT }}"
+            LOG_GROUP="${{ env.LOG_GROUP }}"
+            AWS_REGION="${{ env.AWS_REGION }}"
+
+            echo "== Preflight =="
+            echo "Image: $IMAGE"
+            echo "Container: $NAME"
+            echo "Port: $PORT"
 
             sudo systemctl start docker || true
 
-            # Install CloudWatch agent if not installed
-            if ! command -v amazon-cloudwatch-agent &> /dev/null; then
+            echo "== CloudWatch Agent =="
+            # Install only if rpm package not installed
+            if rpm -q amazon-cloudwatch-agent >/dev/null 2>&1; then
+              echo "CloudWatch agent already installed"
+            else
               echo "Installing CloudWatch agent..."
-              curl -O https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
-              sudo rpm -U ./amazon-cloudwatch-agent.rpm
+              curl -fsSLO https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+              sudo rpm -Uvh ./amazon-cloudwatch-agent.rpm
               rm -f amazon-cloudwatch-agent.rpm
             fi
 
-            # Configure CloudWatch agent for Docker logs
-            INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)
+            # Ensure config dir exists
             sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+
+            # Instance id (avoid ec2-metadata dependency)
+            INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+
+            # Configure CloudWatch agent to collect Docker JSON logs
             sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOF
             {
               "logs": {
@@ -53,7 +70,7 @@ jobs:
                     "collect_list": [
                       {
                         "file_path": "/var/lib/docker/containers/*/*-json.log",
-                        "log_group_name": "/ec2/ec2-bootstrap/docker",
+                        "log_group_name": "${LOG_GROUP}",
                         "log_stream_name": "${INSTANCE_ID}-docker",
                         "timezone": "UTC"
                       }
@@ -64,14 +81,15 @@ jobs:
             }
             EOF
 
-            # Start CloudWatch agent
-            sudo systemctl enable amazon-cloudwatch-agent
-            sudo systemctl restart amazon-cloudwatch-agent || sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+            # Start/reload agent in idempotent way
+            sudo systemctl enable amazon-cloudwatch-agent || true
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
               -a fetch-config \
               -m ec2 \
               -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
               -s
 
+            echo "== Deploy container =="
             docker pull "$IMAGE"
             docker rm -f "$NAME" || true
 
@@ -81,6 +99,11 @@ jobs:
               -p "${PORT}:${PORT}" \
               "$IMAGE"
 
+            echo "== Verify =="
             docker ps --filter "name=$NAME"
+
+            # Optional app health check (won't fail deploy if endpoint doesn't exist)
+            curl -fsS "http://localhost:${PORT}/health" >/dev/null && echo "✅ /health OK" || echo "ℹ️ /health not available or not ready yet"
+
             echo "✅ Deployed: $IMAGE"
-            echo "✅ CloudWatch agent configured"
+            echo "✅ CloudWatch agent configured (LogGroup: ${LOG_GROUP})"
