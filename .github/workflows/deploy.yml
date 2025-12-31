@@ -9,11 +9,9 @@ on:
         default: latest
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }} # owner/repo
+  IMAGE: ghcr.io/${{ github.repository }}
   CONTAINER_NAME: ec2-bootstrap
   PORT: "3030"
-  AWS_REGION: eu-central-1
-  LOG_GROUP: /ec2/ec2-bootstrap/docker
 
 jobs:
   deploy:
@@ -35,8 +33,6 @@ jobs:
             IMAGE="${IMAGE_LOWER}:${{ inputs.tag }}"
             NAME="${{ env.CONTAINER_NAME }}"
             PORT="${{ env.PORT }}"
-            LOG_GROUP="${{ env.LOG_GROUP }}"
-            AWS_REGION="${{ env.AWS_REGION }}"
 
             echo "== Preflight =="
             echo "Image: $IMAGE"
@@ -45,83 +41,14 @@ jobs:
 
             sudo systemctl start docker || true
 
-            echo "== CloudWatch Agent =="
-            # Install only if rpm package not installed
-            if rpm -q amazon-cloudwatch-agent >/dev/null 2>&1; then
-              echo "CloudWatch agent already installed"
-            else
-              echo "Installing CloudWatch agent..."
-              curl -fsSLO https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
-              sudo rpm -Uvh ./amazon-cloudwatch-agent.rpm
-              rm -f amazon-cloudwatch-agent.rpm
-            fi
+            echo "== Pull image =="
+            docker pull "$IMAGE"
 
-            # Ensure config dir exists
-            sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
-
-            # Instance id (avoid ec2-metadata dependency)
-            INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-
-            # Configure CloudWatch agent to collect Docker JSON logs
-            sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOF
-            {
-              "logs": {
-                "logs_collected": {
-                  "files": {
-                    "collect_list": [
-                      {
-                        "file_path": "/var/lib/docker/containers/*/*-json.log",
-                        "log_group_name": "${LOG_GROUP}",
-                        "log_stream_name": "${INSTANCE_ID}-docker",
-                        "timezone": "UTC"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-            EOF
-
-            # Start/reload agent in idempotent way
-            sudo systemctl enable amazon-cloudwatch-agent || true
-            if sudo systemctl is-active --quiet amazon-cloudwatch-agent; then
-              echo "Reloading CloudWatch agent config..."
-              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-                -a fetch-config \
-                -m ec2 \
-                -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-                -s
-            else
-              echo "Starting CloudWatch agent..."
-              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-                -a fetch-config \
-                -m ec2 \
-                -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-                -s
-            fi
-
-            echo "== Deploy container =="
-            # Pull image with retry
-            PULL_SUCCESS=false
-            for i in 1 2 3; do
-              if docker pull "$IMAGE"; then
-                PULL_SUCCESS=true
-                break
-              fi
-              echo "Pull attempt $i failed, retrying in 5s..."
-              sleep 5
-            done
-            
-            if [ "$PULL_SUCCESS" = false ]; then
-              echo "❌ Failed to pull image $IMAGE after 3 attempts"
-              exit 1
-            fi
-
-            # Stop and remove old container
+            echo "== Stop old container =="
             docker stop "$NAME" 2>/dev/null || true
             docker rm -f "$NAME" 2>/dev/null || true
 
-            # Run new container
+            echo "== Run new container =="
             docker run -d \
               --name "$NAME" \
               --restart unless-stopped \
@@ -131,8 +58,8 @@ jobs:
             echo "== Verify =="
             docker ps --filter "name=$NAME"
 
-            # Optional app health check (won't fail deploy if endpoint doesn't exist)
-            curl -fsS "http://localhost:${PORT}/health" >/dev/null && echo "✅ /health OK" || echo "ℹ️ /health not available or not ready yet"
+            curl -fsS "http://localhost:${PORT}/health" >/dev/null \
+              && echo "✅ /health OK" \
+              || echo "⚠️ /health not ready yet"
 
             echo "✅ Deployed: $IMAGE"
-            echo "✅ CloudWatch agent configured (LogGroup: ${LOG_GROUP})"
