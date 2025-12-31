@@ -13,7 +13,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
@@ -43,5 +43,10 @@ if (require.main === module) {
     logger.info({ port: PORT }, 'Server started');
   });
 }
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception');
+  process.exit(1);
+});
 
 module.exports = app;
