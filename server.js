@@ -1,6 +1,6 @@
 const express = require('express');
-const logger = require('./logger');
-const httpLogger = require('./httpLogger');
+const logger = require('./logger/logger');
+const httpLogger = require('./logger/httpLogger');
 
 const app = express();
 const PORT = process.env.PORT || 3030;
