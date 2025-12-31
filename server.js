@@ -1,13 +1,15 @@
 const express = require('express');
+const logger = require('./logger');
+const httpLogger = require('./httpLogger');
+
 const app = express();
 const PORT = process.env.PORT || 3030;
 
 app.use(express.json());
-
-// TODO: CloudWatch Logs + EC2 worker
+app.use(httpLogger);
 
 app.get('/health', (req, res) => {
-  console.log('[INFO] route: /health');
+  req.log.info({ route: '/health' }, 'Health check');
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -16,7 +18,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-  console.log('[INFO] route: /data');
+  req.log.info({ route: '/data' }, 'Data endpoint called');
   res.status(200).json({
     message: 'Hello from EC2!',
     data: {
@@ -29,7 +31,7 @@ app.get('/data', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  console.log('[INFO] route: /data');
+  req.log.info({ route: '/' }, 'Root endpoint called');
   res.status(200).json({
     message: 'Welcome to EC2 Bootstrap API',
     endpoints: ['/health', '/data']
@@ -38,9 +40,8 @@ app.get('/', (req, res) => {
 
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
+    logger.info({ port: PORT }, 'Server started');
   });
 }
 
 module.exports = app;
-
