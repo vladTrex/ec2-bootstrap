@@ -27,6 +27,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
+          timeout: 60s
           script: |
             set -euo pipefail
 
@@ -83,16 +84,44 @@ jobs:
 
             # Start/reload agent in idempotent way
             sudo systemctl enable amazon-cloudwatch-agent || true
-            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-              -a fetch-config \
-              -m ec2 \
-              -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-              -s
+            if sudo systemctl is-active --quiet amazon-cloudwatch-agent; then
+              echo "Reloading CloudWatch agent config..."
+              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+                -a fetch-config \
+                -m ec2 \
+                -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+                -s
+            else
+              echo "Starting CloudWatch agent..."
+              sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+                -a fetch-config \
+                -m ec2 \
+                -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+                -s
+            fi
 
             echo "== Deploy container =="
-            docker pull "$IMAGE"
-            docker rm -f "$NAME" || true
+            # Pull image with retry
+            PULL_SUCCESS=false
+            for i in 1 2 3; do
+              if docker pull "$IMAGE"; then
+                PULL_SUCCESS=true
+                break
+              fi
+              echo "Pull attempt $i failed, retrying in 5s..."
+              sleep 5
+            done
+            
+            if [ "$PULL_SUCCESS" = false ]; then
+              echo "❌ Failed to pull image $IMAGE after 3 attempts"
+              exit 1
+            fi
 
+            # Stop and remove old container
+            docker stop "$NAME" 2>/dev/null || true
+            docker rm -f "$NAME" 2>/dev/null || true
+
+            # Run new container
             docker run -d \
               --name "$NAME" \
               --restart unless-stopped \
